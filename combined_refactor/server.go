@@ -72,8 +72,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		cfCountry, cfCountryOK = detectCloudflareTraceCountry(ctx)
 		cancel()
 	}
+	defaultSpeedURL, speedISP, speedISPErr := resolveStartupSpeedTestURL(r.Context(), speedTestURL)
+	if speedISPErr != nil {
+		recordDebugError("speed_isp_check", speedISPErr.Error())
+	}
+	if speedISPErr == nil {
+		recordDebugByLevel("all", "speed_isp_check", fmt.Sprintf("asn=%d org=%s mobile=%v default=%s", speedISP.ASN, speedISP.ASOrganization, isChinaMobileISP(speedISP), defaultSpeedURL))
+	}
 	session.sendWSMessage("init_config", map[string]interface{}{
 		"speedTestURL":     speedTestURL,
+		"speedTestDefault": defaultSpeedURL,
 		"speedTestWorkers": speedTestWorkers,
 		"debug":            debugMode,
 		"version":          appVersion,
@@ -226,8 +234,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				fileContent := params.FileContent
 				if hasSourceURL {
 					session.sendWSMessage("log", "正在获取非标网络输入: "+params.SourceURL)
-					content, err := getURLContent(params.SourceURL)
+					content, err := getURLContentWithContext(ctx, params.SourceURL)
 					if err != nil {
+						if ctx.Err() != nil {
+							return
+						}
 						session.sendWSMessage("error", "获取非标网络输入失败: "+err.Error())
 						return
 					}

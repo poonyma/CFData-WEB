@@ -172,6 +172,18 @@ func main() {
 	}
 	speedTestWorkers = cliCfg.speedTest
 	configureHTTPClients()
+	startupSpeedTestURL := speedTestURL
+	if !cliCfg.enabled {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		resolvedSpeedURL, speedISP, err := resolveStartupSpeedTestURL(ctx, speedTestURL)
+		cancel()
+		if err != nil {
+			recordDebugError("speed_isp_check", err.Error())
+		} else {
+			startupSpeedTestURL = resolvedSpeedURL
+			recordDebugByLevel("all", "speed_isp_check", fmt.Sprintf("startup asn=%d org=%s mobile=%v default=%s", speedISP.ASN, speedISP.ASOrganization, isChinaMobileISP(speedISP), resolvedSpeedURL))
+		}
+	}
 	if webSessionMinutes <= 0 {
 		webSessionMinutes = 720
 	}
@@ -230,7 +242,7 @@ func main() {
 	} else if webUser != "" || webPassword != "" {
 		fmt.Println("警告： 需要同时设置 -user 和 -password 才会启用认证")
 	}
-	fmt.Printf("当前测速网址: %s\n", speedTestURL)
+	fmt.Printf("当前测速网址: %s\n", startupSpeedTestURL)
 	if skipGeoCheck {
 		fmt.Println("地区验证: 已跳过")
 	} else {

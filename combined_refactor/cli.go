@@ -260,6 +260,7 @@ func runCLI(cfg *cliConfig) error {
 			return err
 		}
 	}
+	applyCLISpeedDefault()
 	printCLIConfig(cfg)
 
 	if !skipGeoCheck {
@@ -288,6 +289,23 @@ func runCLI(cfg *cliConfig) error {
 		return runNSBCLI(cfg)
 	default:
 		return fmt.Errorf("不支持的 -mode: %s（仅支持 official 或 nsb）", cfg.mode)
+	}
+}
+
+func applyCLISpeedDefault() {
+	if !isAutoSpeedURL(speedTestURL) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	resolved, info, err := resolveStartupSpeedTestURL(ctx, speedTestURL)
+	cancel()
+	if err != nil {
+		recordDebugError("speed_isp_check", err.Error())
+		return
+	}
+	if resolved != autoSpeedURLValue {
+		speedTestURL = resolved
+		recordDebugByLevel("all", "speed_isp_check", fmt.Sprintf("cli asn=%d org=%s default=%s", info.ASN, info.ASOrganization, speedTestURL))
 	}
 }
 
